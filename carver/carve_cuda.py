@@ -64,6 +64,7 @@ class Core:
         global block_x, block_y, data_size, max_pixel_backward_energy
 
         self._cuda_ctx.push()
+        
         try:
             # host data
             image_host = image
@@ -101,6 +102,7 @@ class Core:
                     block=(block_x, block_y, 1),
                     grid=(width // block_x + 1, height // block_y + 1, 1),
                     stream=self._stream)
+            
             if r_mask_host is not None:
                 cuda.memcpy_htod_async(r_mask_device, r_mask_host, self._stream)
                 self._add_mask_by_factor(
@@ -112,6 +114,7 @@ class Core:
                     block=(block_x, block_y, 1),
                     grid=(width // block_x + 1, height // block_y + 1, 1),
                     stream=self._stream)
+                
             if p_mask_host is not None:
                 cuda.memcpy_htod_async(p_mask_device, p_mask_host, self._stream)
                 self._add_mask_by_factor(
@@ -133,6 +136,7 @@ class Core:
                     block=(block_x, 1, 1),
                     grid=(width // block_x + 1, 1, 1),
                     stream=self._stream)
+                
             self._get_min_index(
                     energy_device,
                     min_index_device,
@@ -141,6 +145,7 @@ class Core:
                     block=(1, 1, 1),
                     grid=(1, 1, 1),
                     stream=self._stream)
+            
             cuda.memcpy_dtoh_async(backtrack_host, backtrack_device, self._stream)
             cuda.memcpy_dtoh_async(min_index_host, min_index_device, self._stream)
 

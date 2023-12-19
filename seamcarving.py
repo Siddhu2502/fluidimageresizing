@@ -5,38 +5,12 @@ from pathfinding.core.grid import Grid
 from pathfinding.finder.a_star import AStarFinder
 
 class SeamCarver:
-    def __init__(self, filename, out_height, out_width, protect_mask='', object_mask=''):
-        """
-        Initializes the SeamCarving object.
-
-        Parameters:
-        - filename (str): The path to the input image file.
-        - out_height (int): The desired height of the output image.
-        - out_width (int): The desired width of the output image.
-        - protect_mask (str, optional): The path to the protect mask image file. Defaults to an empty string.
-        - object_mask (str, optional): The path to the object mask image file. Defaults to an empty string.
-
-        Attributes:
-        - filename (str): The path to the input image file.
-        - out_height (int): The desired height of the output image.
-        - out_width (int): The desired width of the output image.
-        - in_image (ndarray): The input image stored as np.float64 format.
-        - in_height (int): The height of the input image.
-        - in_width (int): The width of the input image.
-        - out_image (ndarray): The resulting image, initially a copy of the input image.
-        - object (bool): Indicates whether object removal is enabled.
-        - mask (ndarray): The mask image stored as np.float64 format in gray scale.
-        - protect (bool): Indicates whether protect mask is enabled.
-        - kernel_x (ndarray): The kernel for forward energy map calculation in the x-direction.
-        - kernel_y_left (ndarray): The kernel for forward energy map calculation in the y-direction (left).
-        - kernel_y_right (ndarray): The kernel for forward energy map calculation in the y-direction (right).
-        - constant (int): The constant value for covered area by protect mask or object mask.
-
-        """
+    def __init__(self, filename, out_height, out_width, protect_mask='', object_mask='', filter_type='sobel'):
         # initialize parameter
         self.filename = filename
         self.out_height = out_height
         self.out_width = out_width
+        self.filter_type = filter_type
 
         # read in image and store as np.float64 format
         self.in_image = cv2.imread(filename).astype(np.float64)
@@ -217,34 +191,42 @@ class SeamCarver:
     def calc_energy_map(self):
         b, g, r = cv2.split(self.out_image)
         
-        # b_energy_scharr = np.absolute(cv2.Scharr(b, -1, 1, 0)) + np.absolute(cv2.Scharr(b, -1, 0, 1))
-        # g_energy_scharr = np.absolute(cv2.Scharr(g, -1, 1, 0)) + np.absolute(cv2.Scharr(g, -1, 0, 1))
-        # r_energy_scharr = np.absolute(cv2.Scharr(r, -1, 1, 0)) + np.absolute(cv2.Scharr(r, -1, 0, 1))
-        
-        # b_energy_sobel = np.absolute(cv2.Sobel(b, cv2.CV_64F, 1, 0, ksize=5)) + np.absolute(cv2.Sobel(b, cv2.CV_64F, 0, 1, ksize=5))
-        # g_energy_sobel = np.absolute(cv2.Sobel(g, cv2.CV_64F, 1, 0, ksize=5)) + np.absolute(cv2.Sobel(g, cv2.CV_64F, 0, 1, ksize=5))
-        # r_energy_sobel = np.absolute(cv2.Sobel(r, cv2.CV_64F, 1, 0, ksize=5)) + np.absolute(cv2.Sobel(r, cv2.CV_64F, 0, 1, ksize=5))
-                
-        # canny edge detection
-        # b = cv2.convertScaleAbs(b)
-        # g = cv2.convertScaleAbs(g)
-        # r = cv2.convertScaleAbs(r)
+        if self.filter_type == 'scharr':
+            b_energy_scharr = np.absolute(cv2.Scharr(b, -1, 1, 0)) + np.absolute(cv2.Scharr(b, -1, 0, 1))
+            g_energy_scharr = np.absolute(cv2.Scharr(g, -1, 1, 0)) + np.absolute(cv2.Scharr(g, -1, 0, 1))
+            r_energy_scharr = np.absolute(cv2.Scharr(r, -1, 1, 0)) + np.absolute(cv2.Scharr(r, -1, 0, 1))
+            
+            return b_energy_scharr + g_energy_scharr + r_energy_scharr
 
-        # b_energy_canny = cv2.Canny(b, 100, 200)
-        # g_energy_canny = cv2.Canny(g, 100, 200)
-        # r_energy_canny = cv2.Canny(r, 100, 200)
+        if self.filter_type == 'sobel':
+            b_energy_sobel = np.absolute(cv2.Sobel(b, cv2.CV_64F, 1, 0, ksize=3)) + np.absolute(cv2.Sobel(b, cv2.CV_64F, 0, 1, ksize=3))
+            g_energy_sobel = np.absolute(cv2.Sobel(g, cv2.CV_64F, 1, 0, ksize=3)) + np.absolute(cv2.Sobel(g, cv2.CV_64F, 0, 1, ksize=3))
+            r_energy_sobel = np.absolute(cv2.Sobel(r, cv2.CV_64F, 1, 0, ksize=3)) + np.absolute(cv2.Sobel(r, cv2.CV_64F, 0, 1, ksize=3))
+            
+            return b_energy_sobel + g_energy_sobel + r_energy_sobel
         
-        # Prewitt Filter
-        b_energy_prewitt = np.absolute(cv2.filter2D(b, -1, kernel=np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]]))) + \
-                            np.absolute(cv2.filter2D(b, -1, kernel=np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])))
-        g_energy_prewitt = np.absolute(cv2.filter2D(g, -1, kernel=np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]]))) + \
-                            np.absolute(cv2.filter2D(g, -1, kernel=np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])))
-        r_energy_prewitt = np.absolute(cv2.filter2D(r, -1, kernel=np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]]))) + \
-                            np.absolute(cv2.filter2D(r, -1, kernel=np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])))
-                            
-
+        if self.filter_type == 'canny':     
+            # canny edge detection
+            b = cv2.convertScaleAbs(b)
+            g = cv2.convertScaleAbs(g)
+            r = cv2.convertScaleAbs(r)  
+            
+            b_energy_canny = cv2.Canny(b, 100, 200)
+            g_energy_canny = cv2.Canny(g, 100, 200)
+            r_energy_canny = cv2.Canny(r, 100, 200)
+            
+            return b_energy_canny + g_energy_canny + r_energy_canny
+        
+        if self.filter_type == 'prewitt':
+            # Prewitt Filter
+            b_energy_prewitt = np.absolute(cv2.filter2D(b, -1, kernel=np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]]))) + \
+                                np.absolute(cv2.filter2D(b, -1, kernel=np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])))
+            g_energy_prewitt = np.absolute(cv2.filter2D(g, -1, kernel=np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]]))) + \
+                                np.absolute(cv2.filter2D(g, -1, kernel=np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])))
+            r_energy_prewitt = np.absolute(cv2.filter2D(r, -1, kernel=np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]]))) + \
+                                np.absolute(cv2.filter2D(r, -1, kernel=np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])))
     
-        return b_energy_prewitt + g_energy_prewitt + r_energy_prewitt
+            return b_energy_prewitt + g_energy_prewitt + r_energy_prewitt
 
 
     def cumulative_map_backward(self, energy_map):
@@ -367,8 +349,8 @@ class SeamCarver:
         cv2.imwrite(filename, self.out_image.astype(np.uint8))
         
 
-def image_resize_without_mask(filename_input, filename_output, new_height, new_width):
-    obj = SeamCarver(filename_input, new_height, new_width)
+def image_resize_without_mask(filename_input, filename_output, new_height, new_width, filter_type):
+    obj = SeamCarver(filename_input, new_height, new_width, filter_type=filter_type)
     obj.save_result(filename_output)
 
 
@@ -382,8 +364,18 @@ if __name__ == '__main__':
     folder_out = 'Image'
 
     filename_input = 'tower.jpg'
-    filename_output = 'tower_result_prewitt.jpg'
     filename_mask = ''
+    
+    options = ['sobel', 'scharr', 'canny', 'prewitt']
+    print("Choose filter type: " + str(options))
+    filter_type = input("Enter filter type: ")
+    
+    print("the dimentions of image are: " + str(cv2.imread(os.path.join(folder_in, filename_input)).shape))
+    
+    new_height = int(input("input new height: "))
+    new_width = int(input("input new width: "))
+        
+    filename_output = 'tower_' + filter_type + '_' + str(new_height) + '_' + str(new_width) + '.jpg'
 
     input_image = os.path.join(folder_in, filename_input)
     input_mask = os.path.join(folder_in, filename_mask)
@@ -392,7 +384,4 @@ if __name__ == '__main__':
     k = (cv2.imread(input_image))
     print(k.shape)
     
-    new_height = int(input())
-    new_width = int(input())
-
-    image_resize_without_mask(input_image, output_image, new_height, new_width)
+    image_resize_without_mask(input_image, output_image, new_height, new_width, filter_type)
